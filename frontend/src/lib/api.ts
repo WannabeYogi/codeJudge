@@ -58,9 +58,14 @@ export interface LeaderboardEntry {
   totalPenalty: number;
 }
 
-// Default user ID and contest ID for demo purposes
-export const SAMPLE_USER_ID = '68fdb9efd102435f3b037f79';
-export const SAMPLE_CONTEST_ID = '68fdb9efd102435f3b037f7a';
+export interface User {
+  id: string;
+  username: string;
+}
+
+export interface UserRequest {
+  username: string;
+}
 
 // API functions
 export const apiService = {
@@ -79,8 +84,6 @@ export const apiService = {
   getContestDetails: async (contestId: string): Promise<ContestWithProblems> => {
     try {
       const response = await api.get(`/api/contests/${contestId}`);
-      console.log(response);
-      
       return response.data;
     } catch (error) {
       console.error(`Error fetching contest ${contestId}:`, error);
@@ -120,6 +123,27 @@ export const apiService = {
       throw error;
     }
   },
+
+  // User management
+  createUser: async (username: string): Promise<User> => {
+    try {
+      const response = await api.post('/api/users', { username });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  },
+
+  getUserByUsername: async (username: string): Promise<User> => {
+    try {
+      const response = await api.get(`/api/users/${username}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching user ${username}:`, error);
+      throw error;
+    }
+  }
 };
 
 export default apiService;

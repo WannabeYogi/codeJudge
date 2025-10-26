@@ -1,14 +1,16 @@
 "use client";
 
-import { AlertCircle, CheckCircle, Clock, Loader2, Play, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock, Loader2, Play, User, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Problem, SAMPLE_CONTEST_ID, SAMPLE_USER_ID, SubmissionResponse, apiService } from "@/lib/api";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Problem, SubmissionResponse, apiService } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import Editor from "@monaco-editor/react";
-import { useParams } from "next/navigation";
+import UserRegistration from "@/components/user-registration";
 import { useToast } from "@/components/ui/use-toast";
 
 const DEFAULT_JAVA_CODE = `public class Main {
@@ -20,199 +22,160 @@ const DEFAULT_JAVA_CODE = `public class Main {
 
 export default function ProblemPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const problemId = params.problemId as string;
+  const contestId = searchParams.get('contestId');
   const [problem, setProblem] = useState<Problem | null>(null);
   const [code, setCode] = useState(DEFAULT_JAVA_CODE);
   const [language, setLanguage] = useState("java");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submission, setSubmission] = useState<SubmissionResponse | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [showUserDialog, setShowUserDialog] = useState(false);
   const { toast } = useToast();
+
+  // Get the user info from localStorage
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    const storedUsername = localStorage.getItem('username');
+    
+    if (storedUserId && storedUsername) {
+      setUserId(storedUserId);
+      setUsername(storedUsername);
+    }
+
+    // Listen for storage changes (for when user logs in/out in another tab)
+    const handleStorageChange = () => {
+      const currentUserId = localStorage.getItem('userId');
+      const currentUsername = localStorage.getItem('username');
+      setUserId(currentUserId);
+      setUsername(currentUsername);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchProblemDetails = async () => {
+      if (!contestId) {
+        toast({
+          title: "Error",
+          description: "Contest ID is missing. Please select a problem from a contest.",
+          variant: "destructive",
+        });
+        router.push('/contests');
+        return;
+      }
+
       try {
         setLoading(true);
-        // In a real app, we would fetch the problem details
-        // For now, we'll use the contest details API and find the problem
-        const contestDetails = await apiService.getContestDetails(SAMPLE_CONTEST_ID);
+        const contestDetails = await apiService.getContestDetails(contestId);
         const foundProblem = contestDetails.problems.find(p => p.id === problemId);
         
         if (foundProblem) {
           setProblem(foundProblem);
+        } else {
+          toast({
+            title: "Error",
+            description: "Problem not found in this contest.",
+            variant: "destructive",
+          });
+          router.push(`/contests/${contestId}`);
         }
       } catch (error) {
         console.error("Failed to fetch problem details:", error);
         toast({
           title: "Error",
-          description: "Failed to load problem details. Using mock data instead.",
+          description: "Failed to load problem details. Please try again later.",
           variant: "destructive",
         });
-        
-        // Provide mock data when API fails
-        // Find the problem ID in our mock data
-        const mockProblems = [
-          {
-            id: "68fdb9efd102435f3b037f7c",
-            title: "Hello World",
-            description: "Print 'Hello, World!' to the console.",
-            timeLimitMs: 1000,
-            memoryLimitMb: 128
-          },
-          {
-            id: "68fdb9efd102435f3b037f7d",
-            title: "Sum of Two Numbers",
-            description: "Given two integers A and B, return their sum.",
-            timeLimitMs: 1000,
-            memoryLimitMb: 128
-          },
-          {
-            id: "68fdb9efd102435f3b037f7e",
-            title: "Factorial",
-            description: "Calculate the factorial of a given number N.",
-            timeLimitMs: 1000,
-            memoryLimitMb: 128
-          }
-        ];
-        
-        const mockProblem = mockProblems.find(p => p.id === problemId) || mockProblems[0];
-        setProblem(mockProblem);
+        router.push('/contests');
       } finally {
         setLoading(false);
       }
     };
 
     fetchProblemDetails();
-  }, [problemId, toast]);
+  }, [problemId, contestId, toast, router]);
 
   const handleSubmit = async () => {
+    if (!contestId) {
+      toast({
+        title: "Error",
+        description: "Contest ID is missing. Cannot submit the solution.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if user is registered
+    const currentUserId = localStorage.getItem('userId');
+    const currentUsername = localStorage.getItem('username');
+    
+    if (!currentUserId || !currentUsername) {
+      setShowUserDialog(true);
+      toast({
+        title: "Registration Required",
+        description: "Please register with a username before submitting code.",
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
       setSubmission(null);
       
-      try {
-        const response = await apiService.submitCode({
-          userId: SAMPLE_USER_ID,
-          contestId: SAMPLE_CONTEST_ID,
-          problemId,
-          language,
-          code
-        });
-        
-        toast({
-          title: "Submission sent",
-          description: "Your code is being evaluated.",
-        });
-        
-        // Poll for submission status
-        const pollInterval = setInterval(async () => {
-          try {
-            const submissionStatus = await apiService.getSubmission(response.submissionId);
-            setSubmission(submissionStatus);
-            
-            if (submissionStatus.status !== 'PENDING' && submissionStatus.status !== 'RUNNING') {
-              clearInterval(pollInterval);
-              setSubmitting(false);
-            }
-          } catch (error) {
-            console.error("Failed to fetch submission status:", error);
+      const response = await apiService.submitCode({
+        userId: currentUserId,
+        contestId: contestId,
+        problemId,
+        language,
+        code
+      });
+      
+      toast({
+        title: "Submission sent",
+        description: "Your code is being evaluated.",
+      });
+      
+      // Poll for submission status
+      const pollInterval = setInterval(async () => {
+        try {
+          const submissionStatus = await apiService.getSubmission(response.submissionId);
+          setSubmission(submissionStatus);
+          
+          if (submissionStatus.status !== 'PENDING' && submissionStatus.status !== 'RUNNING') {
             clearInterval(pollInterval);
             setSubmitting(false);
-            
-            // Provide mock submission data
-            simulateMockSubmission();
           }
-        }, 2000);
-      } catch (error) {
-        console.error("Failed to submit code to API:", error);
-        toast({
-          title: "Demo Mode",
-          description: "Using mock submission data since the backend is not available.",
-        });
-        
-        // Simulate a submission with mock data
-        simulateMockSubmission();
-      }
+        } catch (error) {
+          console.error("Failed to fetch submission status:", error);
+          clearInterval(pollInterval);
+          setSubmitting(false);
+          
+          toast({
+            title: "Error",
+            description: "Failed to get submission status. Please check the submissions tab later.",
+            variant: "destructive",
+          });
+        }
+      }, 2000);
     } catch (error) {
       console.error("Failed to submit code:", error);
       toast({
         title: "Error",
-        description: "Failed to submit your code. Please try again.",
+        description: "Failed to submit your code. Please try again later.",
         variant: "destructive",
       });
       setSubmitting(false);
     }
-  };
-  
-  // Function to simulate a submission with mock data
-  const simulateMockSubmission = () => {
-    // First set to pending
-    setSubmission({
-      id: "mock-submission-" + Date.now(),
-      userId: SAMPLE_USER_ID,
-      problemId: problemId,
-      status: 'PENDING',
-      verdict: null,
-      runtimeMs: null,
-      memoryUsedMb: null,
-      output: null,
-      errorLog: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-    
-    // After 1 second, set to running
-    setTimeout(() => {
-      setSubmission(prev => ({
-        ...prev!,
-        status: 'RUNNING',
-        updatedAt: new Date().toISOString()
-      }));
-      
-      // After 2 more seconds, set the final result
-      setTimeout(() => {
-        // Check if the code contains the expected output for the problem
-        let status: 'ACCEPTED' | 'WRONG_ANSWER' | 'CE';
-        let verdict: string;
-        let output: string | null = null;
-        let errorLog: string | null = null;
-        
-        if (code.includes("System.out.println(\"Hello, World!\")") && problemId === "68fdb9efd102435f3b037f7c") {
-          status = 'ACCEPTED';
-          verdict = "Accepted";
-          output = "Hello, World!";
-        } else if (code.includes("System.out.println(a + b)") && problemId === "68fdb9efd102435f3b037f7d") {
-          status = 'ACCEPTED';
-          verdict = "Accepted";
-          output = "5";
-        } else if (code.includes("factorial") && problemId === "68fdb9efd102435f3b037f7e") {
-          status = 'ACCEPTED';
-          verdict = "Accepted";
-          output = "120";
-        } else if (code.includes("System.out.print")) {
-          status = 'WRONG_ANSWER';
-          verdict = "Wrong Answer";
-          output = "Your output doesn't match the expected output";
-        } else {
-          status = 'CE';
-          verdict = "Compilation Error";
-          errorLog = "Cannot find symbol\n  symbol:   method someUndefinedMethod()\n  location: class Main";
-        }
-        
-        setSubmission(prev => ({
-          ...prev!,
-          status: status,
-          verdict: verdict,
-          runtimeMs: 42,
-          memoryUsedMb: 24,
-          output: output,
-          errorLog: errorLog,
-          updatedAt: new Date().toISOString()
-        }));
-        
-        setSubmitting(false);
-      }, 2000);
-    }, 1000);
   };
 
   const getStatusIcon = () => {
@@ -244,7 +207,7 @@ export default function ProblemPage() {
     return (
       <div className="container py-10">
         <div className="text-center py-10">
-          <p className="text-muted-foreground">Problem not found.</p>
+          <p className="text-muted-foreground">Problem not found. Redirecting...</p>
         </div>
       </div>
     );
@@ -273,14 +236,36 @@ export default function ProblemPage() {
         {/* Code Editor */}
         <div className="lg:col-span-3 flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <Select value={language} onValueChange={setLanguage}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="Language" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="java">Java</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="java">Java</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {username ? (
+                <div className="text-sm flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  <span>{username}</span>
+                </div>
+              ) : (
+                <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <User className="h-4 w-4 mr-2" />
+                      Register
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <UserRegistration />
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+            
             <Button 
               onClick={handleSubmit} 
               disabled={submitting}

@@ -20,6 +20,10 @@ public class ContestService {
     @Autowired
     private ProblemRepository problemRepository;
     
+    public List<Contest> getAllContests() {
+        return contestRepository.findAll();
+    }
+    
     public ContestResponseDTO getContestWithProblems(String contestId) {
         Contest contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new RuntimeException("Contest not found with id: " + contestId));

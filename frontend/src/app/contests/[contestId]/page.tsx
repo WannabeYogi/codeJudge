@@ -4,14 +4,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ChevronRight, Loader2, Trophy } from "lucide-react";
 import { ContestWithProblems, apiService } from "@/lib/api";
 import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function ContestDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const contestId = params.contestId as string;
   const [contest, setContest] = useState<ContestWithProblems | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,45 +28,20 @@ export default function ContestDetailsPage() {
         console.error("Failed to fetch contest details:", error);
         toast({
           title: "Error",
-          description: "Failed to load contest details. Using mock data instead.",
+          description: "Failed to load contest details. Please try again later.",
           variant: "destructive",
         });
-        
-        // Provide mock data when API fails
-        setContest({
-          id: contestId,
-          name: "Sample Contest",
-          problems: [
-            {
-              id: "68fdb9efd102435f3b037f7c",
-              title: "Hello World",
-              description: "Print 'Hello, World!' to the console.",
-              timeLimitMs: 1000,
-              memoryLimitMb: 128
-            },
-            {
-              id: "68fdb9efd102435f3b037f7d",
-              title: "Sum of Two Numbers",
-              description: "Given two integers A and B, return their sum.",
-              timeLimitMs: 1000,
-              memoryLimitMb: 128
-            },
-            {
-              id: "68fdb9efd102435f3b037f7e",
-              title: "Factorial",
-              description: "Calculate the factorial of a given number N.",
-              timeLimitMs: 1000,
-              memoryLimitMb: 128
-            }
-          ]
-        });
+        // Navigate back to contests page after a delay
+        setTimeout(() => {
+          router.push('/contests');
+        }, 3000);
       } finally {
         setLoading(false);
       }
     };
 
     fetchContestDetails();
-  }, [contestId, toast]);
+  }, [contestId, toast, router]);
 
   if (loading) {
     return (
@@ -79,7 +55,7 @@ export default function ContestDetailsPage() {
     return (
       <div className="container py-10">
         <div className="text-center py-10">
-          <p className="text-muted-foreground">Contest not found.</p>
+          <p className="text-muted-foreground">Contest not found. Redirecting to contests page...</p>
         </div>
       </div>
     );
@@ -104,7 +80,7 @@ export default function ContestDetailsPage() {
 
       <div className="grid gap-6">
         {contest.problems.map((problem) => (
-          <Link key={problem.id} href={`/problems/${problem.id}`} passHref>
+          <Link key={problem.id} href={`/problems/${problem.id}?contestId=${contestId}`} passHref>
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardHeader>
                 <CardTitle>{problem.title}</CardTitle>

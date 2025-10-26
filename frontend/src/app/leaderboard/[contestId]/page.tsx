@@ -5,12 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeaderboardEntry, apiService } from "@/lib/api";
 import { Loader2, Medal, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 
-import { useParams } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function LeaderboardPage() {
   const params = useParams();
+  const router = useRouter();
   const contestId = params.contestId as string;
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,27 +26,37 @@ export default function LeaderboardPage() {
       } catch (error) {
         console.error("Failed to fetch leaderboard:", error);
         toast({
-          title: "Demo Mode",
-          description: "Using mock leaderboard data since the backend is not available.",
+          title: "Error",
+          description: "Failed to load leaderboard data. Please try again later.",
+          variant: "destructive",
         });
-        // For demo purposes, set some sample data
-        setLeaderboard([
-          { username: "testuser", solvedCount: 3, totalPenalty: 450 },
-          { username: "coder123", solvedCount: 2, totalPenalty: 320 },
-          { username: "programmer", solvedCount: 2, totalPenalty: 380 },
-        ]);
+        // Navigate back to contests page after a delay
+        setTimeout(() => {
+          router.push('/contests');
+        }, 3000);
       } finally {
         setLoading(false);
       }
     };
 
     fetchLeaderboard();
-  }, [contestId, toast]);
+  }, [contestId, toast, router]);
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-3.5rem)]">
         <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (leaderboard.length === 0) {
+    return (
+      <div className="container py-10">
+        <h1 className="text-3xl font-bold mb-4">Leaderboard</h1>
+        <div className="text-center py-10">
+          <p className="text-muted-foreground">No leaderboard data available for this contest.</p>
+        </div>
       </div>
     );
   }

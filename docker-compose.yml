@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  # MongoDB service
+  mongo:
+    image: mongo:6.0
+    container_name: shodh-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - shodh-network
+
+  # Spring Boot backend service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: shodh-backend
+    depends_on:
+      - mongo
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - ./backend:/app
+      - ~/.m2:/root/.m2
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - shodh-network
+    env_file:
+      - ./backend/.env
+    environment:
+      # Only set this if using local MongoDB, otherwise use MONGODB_URI in .env
+      - SPRING_DATA_MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/shodhdb}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    command: ./mvnw spring-boot:run
+
+  # Next.js frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: shodh-frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - shodh-network
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://backend:8080
+    command: npm run dev
+
+# Define networks
+networks:
+  shodh-network:
+    driver: bridge
+
+# Define volumes
+volumes:
+  mongo-data:
+    name: shodh-mongo-data

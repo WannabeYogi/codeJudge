@@ -86,11 +86,13 @@ The platform provides a safe environment for executing user-submitted code insid
    cd ..
    ```
 
-3. **Create a `.env` file in the root directory**
-   ```
-   MONGO_PORT=27017
-   BACKEND_PORT=8080
-   FRONTEND_PORT=3000
+3. **Set up environment variables**
+   ```bash
+   # Run the setup script to create .env files
+   ./setup-env.sh
+   
+   # Edit backend/.env and update the MongoDB URI with your credentials
+   # IMPORTANT: Never commit .env files to version control!
    ```
 
 4. **Run with Docker Compose**
@@ -111,23 +113,31 @@ The platform provides a safe environment for executing user-submitted code insid
      ```
    - **Option B — MongoDB Atlas**:
      - Create cluster and user, copy connection string
-     - Edit `backend/src/main/resources/application.yml` and set your MongoDB URI
+     - Add your MongoDB URI to `backend/.env`
 
-2. **Run Backend**
+2. **Set up environment variables**
+   ```bash
+   # Run the setup script to create .env files
+   ./setup-env.sh
+   
+   # Edit backend/.env with your MongoDB URI
+   # Edit frontend/.env.local if needed
+   ```
+
+3. **Run Backend**
    ```bash
    cd backend
    ./mvnw spring-boot:run
    ```
 
-3. **Run Frontend**
+4. **Run Frontend**
    ```bash
    cd frontend
    npm install
-   # Create .env.local with NEXT_PUBLIC_API_BASE=http://localhost:8080
    npm run dev
    ```
 
-4. **Verify Setup**
+5. **Verify Setup**
    - Check backend health: `curl http://localhost:8080/ping` (should return "pong")
    - Open frontend: http://localhost:3000
 
@@ -283,7 +293,15 @@ Use these for quick testing:
 - User code runs in isolated Docker containers with resource limits
 - Network access is disabled in containers
 - Memory and CPU usage are restricted
-- For production, consider stronger isolation (gVisor, VM-based sandboxes), per-submission resource accounting, container pools, authentication, rate limits
+- Environment variables are used for sensitive information (MongoDB URI, etc.)
+- `.env` files are excluded from version control via `.gitignore`
+- For production, consider:
+  - Stronger isolation (gVisor, VM-based sandboxes)
+  - Per-submission resource accounting
+  - Container pools
+  - Authentication and authorization
+  - Rate limits
+  - Secrets management (Kubernetes Secrets, AWS Secrets Manager, etc.)
 
 ## 🧪 Testing
 

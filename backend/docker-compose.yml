@@ -18,11 +18,14 @@ services:
       - ~/.m2:/root/.m2
       - /var/run/docker.sock:/var/run/docker.sock
 
-    # Use your MongoDB Atlas connection instead of local Mongo
+    # Load environment variables from .env file
+    env_file:
+      - .env
+
+    # Environment variables (fallbacks if not in .env)
     environment:
-      # 👇 Paste your full Atlas connection string here
-      - SPRING_DATA_MONGODB_URI=mongodb+srv://nipunjaipur:avzfc5ca@cluster0.brmeq86.mongodb.net/shodhdb?retryWrites=true&w=majority
       - DOCKER_HOST=unix:///var/run/docker.sock
+      # MongoDB URI is loaded from .env file
 
     # Start Spring Boot app
     command: ./mvnw spring-boot:run

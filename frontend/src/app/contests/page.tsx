@@ -18,20 +18,16 @@ export default function ContestsPage() {
     const fetchContests = async () => {
       try {
         setLoading(true);
-        // For demo purposes, we'll use the sample contest since the API endpoint might not be implemented
-        // In a real app, you would use: const contests = await apiService.getContests();
-        const sampleContest = {
-          id: "68fdb9efd102435f3b037f7a",
-          name: "Sample Contest"
-        };
-        setContests([sampleContest]);
+        const contestsData = await apiService.getContests();
+        setContests(contestsData);
       } catch (error) {
         console.error("Failed to fetch contests:", error);
         toast({
           title: "Error",
-          description: "Failed to load contests. Please try again.",
+          description: "Failed to load contests. Please try again later.",
           variant: "destructive",
         });
+        setContests([]);
       } finally {
         setLoading(false);
       }
@@ -70,7 +66,7 @@ export default function ContestsPage() {
                 <CardContent>
                   <div className="flex items-center text-sm">
                     <FileCode className="mr-2 h-4 w-4" />
-                    <span>3 Problems</span>
+                    <span>View Problems</span>
                   </div>
                 </CardContent>
                 <CardFooter>

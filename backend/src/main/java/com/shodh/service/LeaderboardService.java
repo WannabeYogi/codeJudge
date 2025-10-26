@@ -30,65 +30,86 @@ public class LeaderboardService {
     private UserRepository userRepository;
     
     public List<LeaderboardEntryDTO> getLeaderboard(String contestId) {
-        // Get all problems for this contest
-        List<Problem> problems = problemRepository.findByContestId(contestId);
-        List<String> problemIds = problems.stream()
-                .map(Problem::getId)
-                .collect(Collectors.toList());
-        
-        // Get all accepted submissions for these problems
-        List<Submission> acceptedSubmissions = submissionRepository
-                .findByProblemIdInAndStatus(problemIds, Submission.SubmissionStatus.ACCEPTED);
-        
-        // Group submissions by user
-        Map<String, List<Submission>> submissionsByUser = acceptedSubmissions.stream()
-                .collect(Collectors.groupingBy(Submission::getUserId));
-        
-        // Calculate leaderboard entries
-        List<LeaderboardEntryDTO> leaderboard = new ArrayList<>();
-        
-        for (Map.Entry<String, List<Submission>> entry : submissionsByUser.entrySet()) {
-            String userId = entry.getKey();
-            List<Submission> userSubmissions = entry.getValue();
+        try {
+            // Get all problems for this contest
+            List<Problem> problems = problemRepository.findByContestId(contestId);
             
-            // Get user details
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+            if (problems.isEmpty()) {
+                return new ArrayList<>(); // Return empty list if no problems found
+            }
             
-            // Count unique solved problems
-            Map<String, Submission> fastestSubmissionByProblem = new HashMap<>();
+            List<String> problemIds = problems.stream()
+                    .map(Problem::getId)
+                    .collect(Collectors.toList());
             
-            for (Submission submission : userSubmissions) {
-                String problemId = submission.getProblemId();
-                if (!fastestSubmissionByProblem.containsKey(problemId) || 
-                        submission.getRuntimeMs() < fastestSubmissionByProblem.get(problemId).getRuntimeMs()) {
-                    fastestSubmissionByProblem.put(problemId, submission);
+            // Get all accepted submissions for these problems
+            List<Submission> acceptedSubmissions = submissionRepository
+                    .findByProblemIdInAndStatus(problemIds, Submission.SubmissionStatus.ACCEPTED);
+            
+            if (acceptedSubmissions.isEmpty()) {
+                return new ArrayList<>(); // Return empty list if no accepted submissions
+            }
+            
+            // Group submissions by user
+            Map<String, List<Submission>> submissionsByUser = acceptedSubmissions.stream()
+                    .collect(Collectors.groupingBy(Submission::getUserId));
+            
+            // Calculate leaderboard entries
+            List<LeaderboardEntryDTO> leaderboard = new ArrayList<>();
+            
+            for (Map.Entry<String, List<Submission>> entry : submissionsByUser.entrySet()) {
+                String userId = entry.getKey();
+                List<Submission> userSubmissions = entry.getValue();
+                
+                // Get user details - handle case where user might not exist
+                User user = userRepository.findById(userId).orElse(null);
+                if (user == null) {
+                    // Skip this user if not found
+                    continue;
                 }
+                
+                // Count unique solved problems
+                Map<String, Submission> fastestSubmissionByProblem = new HashMap<>();
+                
+                for (Submission submission : userSubmissions) {
+                    String problemId = submission.getProblemId();
+                    if (!fastestSubmissionByProblem.containsKey(problemId) || 
+                            (submission.getRuntimeMs() != null && 
+                             fastestSubmissionByProblem.get(problemId).getRuntimeMs() != null &&
+                             submission.getRuntimeMs() < fastestSubmissionByProblem.get(problemId).getRuntimeMs())) {
+                        fastestSubmissionByProblem.put(problemId, submission);
+                    }
+                }
+                
+                int solvedCount = fastestSubmissionByProblem.size();
+                
+                // Calculate total penalty (sum of runtimes for fastest solutions)
+                long totalPenalty = fastestSubmissionByProblem.values().stream()
+                        .mapToLong(s -> s.getRuntimeMs() != null ? s.getRuntimeMs() : 0)
+                        .sum();
+                
+                leaderboard.add(LeaderboardEntryDTO.builder()
+                        .username(user.getUsername())
+                        .solvedCount(solvedCount)
+                        .totalPenalty(totalPenalty)
+                        .build());
             }
             
-            int solvedCount = fastestSubmissionByProblem.size();
+            // Sort by solved count (desc) and then by penalty (asc)
+            leaderboard.sort((a, b) -> {
+                int compareByCount = Integer.compare(b.getSolvedCount(), a.getSolvedCount());
+                if (compareByCount != 0) {
+                    return compareByCount;
+                }
+                return Long.compare(a.getTotalPenalty(), b.getTotalPenalty());
+            });
             
-            // Calculate total penalty (sum of runtimes for fastest solutions)
-            long totalPenalty = fastestSubmissionByProblem.values().stream()
-                    .mapToLong(s -> s.getRuntimeMs() != null ? s.getRuntimeMs() : 0)
-                    .sum();
-            
-            leaderboard.add(LeaderboardEntryDTO.builder()
-                    .username(user.getUsername())
-                    .solvedCount(solvedCount)
-                    .totalPenalty(totalPenalty)
-                    .build());
+            return leaderboard;
+        } catch (Exception e) {
+            // Log the error and return empty list
+            System.err.println("Error in getLeaderboard: " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
         }
-        
-        // Sort by solved count (desc) and then by penalty (asc)
-        leaderboard.sort((a, b) -> {
-            int compareByCount = Integer.compare(b.getSolvedCount(), a.getSolvedCount());
-            if (compareByCount != 0) {
-                return compareByCount;
-            }
-            return Long.compare(a.getTotalPenalty(), b.getTotalPenalty());
-        });
-        
-        return leaderboard;
     }
 }

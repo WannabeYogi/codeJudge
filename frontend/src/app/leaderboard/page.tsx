@@ -1,15 +1,34 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { Loader2 } from "lucide-react";
-import { SAMPLE_CONTEST_ID } from "@/lib/api";
-import { useEffect } from "react";
+import { apiService } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 export default function LeaderboardRedirectPage() {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    router.push(`/leaderboard/${SAMPLE_CONTEST_ID}`);
+    const fetchContests = async () => {
+      try {
+        // Fetch the first available contest
+        const contests = await apiService.getContests();
+        if (contests && contests.length > 0) {
+          router.push(`/leaderboard/${contests[0].id}`);
+        } else {
+          // If no contests are available, redirect to contests page
+          router.push('/contests');
+        }
+      } catch (error) {
+        console.error("Failed to fetch contests:", error);
+        // On error, redirect to contests page
+        router.push('/contests');
+      }
+    };
+
+    fetchContests();
   }, [router]);
 
   return (

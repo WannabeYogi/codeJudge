@@ -1,12 +1,42 @@
 "use client";
 
 import { Code, FileCode, Trophy } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { SAMPLE_CONTEST_ID } from "@/lib/api";
+import { Loader2 } from "lucide-react";
+import { apiService } from "@/lib/api";
 
 export default function Home() {
+  const [firstContestId, setFirstContestId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFirstContest = async () => {
+      try {
+        const contests = await apiService.getContests();
+        if (contests && contests.length > 0) {
+          setFirstContestId(contests[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch contests:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFirstContest();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[calc(100vh-3.5rem)]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-3.5rem)] py-12 px-4 sm:px-6 lg:px-8">
       <div className="text-center">
@@ -26,18 +56,33 @@ export default function Home() {
               View Contests
             </Button>
           </Link>
-          <Link href={`/contests/${SAMPLE_CONTEST_ID}`} passHref>
-            <Button size="lg" variant="outline" className="gap-2">
-              <Code className="h-5 w-5" />
-              Submit Code
-            </Button>
-          </Link>
-          <Link href={`/leaderboard/${SAMPLE_CONTEST_ID}`} passHref>
-            <Button size="lg" variant="outline" className="gap-2">
-              <Trophy className="h-5 w-5" />
-              Leaderboard
-            </Button>
-          </Link>
+          {firstContestId ? (
+            <>
+              <Link href={`/contests/${firstContestId}`} passHref>
+                <Button size="lg" variant="outline" className="gap-2">
+                  <Code className="h-5 w-5" />
+                  Submit Code
+                </Button>
+              </Link>
+              <Link href={`/leaderboard/${firstContestId}`} passHref>
+                <Button size="lg" variant="outline" className="gap-2">
+                  <Trophy className="h-5 w-5" />
+                  Leaderboard
+                </Button>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Button size="lg" variant="outline" className="gap-2" disabled>
+                <Code className="h-5 w-5" />
+                Submit Code
+              </Button>
+              <Button size="lg" variant="outline" className="gap-2" disabled>
+                <Trophy className="h-5 w-5" />
+                Leaderboard
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
