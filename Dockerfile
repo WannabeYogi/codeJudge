@@ -1,0 +1,11 @@
+# Lightweight image for compiling and running user-submitted code
+FROM mirror.gcr.io/library/openjdk:21-slim
+
+
+# Create a safe working directory
+WORKDIR /sandbox
+
+# The container will receive the user's code and input through a mounted volume
+# Example mount: -v /tmp/shodh/<submissionId>:/sandbox
+# Default command (overridden by ProcessBuilder in the Java code)
+CMD ["bash"]
